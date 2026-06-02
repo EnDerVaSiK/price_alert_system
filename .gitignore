@@ -1,0 +1,28 @@
+# Среды виртуализации Python
+venv/
+env/
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Специфичное для Node.js (Frontend)
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+
+# Переменные окружения и секреты
+.env
+*.env
+.env.*
+
+# Настройки IDE
+.vscode/
+.idea/
+*.swp
+
+# Базы данных локальные
+*.sqlite3
+pgdata/
+redisdata/
+
