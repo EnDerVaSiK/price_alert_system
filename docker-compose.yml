@@ -1,0 +1,88 @@
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: price_alerts
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d price_alerts"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    # volumes:
+    #   - price_alert_pgdata:/var/lib/postgresql/price_alert_pgdata  # КРИТИЧЕСКИ ВАЖНАЯ СТРОКА
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: practice2/services/api-gateway/Dockerfile
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://user:password@db:5432/price_alerts
+      - REDIS_URL=redis://redis:6379/0
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: practice2/services/scheduler/Dockerfile
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://user:password@db:5432/price_alerts
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  parser:
+    build:
+      context: .
+      dockerfile: practice2/services/parser/Dockerfile
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_started
+
+  analyzer:
+    build:
+      context: .
+      dockerfile: practice2/services/analyzer/Dockerfile
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://user:password@db:5432/price_alerts
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  notifier:
+    build:
+      context: .
+      dockerfile: practice2/services/notifier/Dockerfile
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+    depends_on:
+      redis:
+        condition: service_started
+
+  # frontend:
+  #   build: practice2/services/frontend
+  #   ports:
+  #     - "5173:5173"
+
+# volumes:
+#   price_alert_pgdata:

@@ -15,6 +15,7 @@ frontend/build/
 .env
 *.env
 .env.*
+!.env.example
 
 # Настройки IDE
 .vscode/
