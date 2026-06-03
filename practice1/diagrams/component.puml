@@ -1,0 +1,33 @@
+@startuml
+!include <C4/C4_Component>
+
+LAYOUT_WITH_LEGEND()
+
+skinparam wrapWidth 200
+
+title Диаграмма компонентов (C3): Контейнер "Analyzer"
+
+ContainerQueue(redis, "Message Broker", "Redis", "Очереди задач.")
+ContainerDb(database, "Database", "PostgreSQL", "Хранилище подписок.")
+
+Container_Boundary(analyzer_container, "Analyzer Microservice") {
+    
+    Component(redis_consumer, "Queue Listener", "redis.asyncio", "Слушает очередь 'queue:analyze' и извлекает JSON с новыми ценами.")
+    
+    Component(price_processor, "Price Processor", "Python", "Центральная бизнес-логика. Вычисляет дельту цен и определяет необходимость отправки уведомления.")
+    
+    Component(db_session, "DB Repository", "SQLAlchemy AsyncSession", "Выполняет транзакционные SELECT/UPDATE запросы к таблицам Ticker и Subscription.")
+    
+    Component(alert_publisher, "Alert Publisher", "redis.asyncio", "Формирует payload алерта (welcome/price_changed) и публикует его в 'queue:notify'.")
+}
+
+Rel_D(redis_consumer, redis, "Слушает задачи (brpop)", "TCP/Redis Protocol")
+Rel_D(redis_consumer, price_processor, "Передает словарь цен", "Внутрипроцессный вызов")
+
+Rel_R(price_processor, db_session, "Запрашивает старую цену и передает новую", "Внутрипроцессный вызов")
+Rel_D(price_processor, alert_publisher, "Инициирует генерацию алерта", "Внутрипроцессный вызов")
+
+Rel_U(db_session, database, "Чтение/Обновление last_notified_price", "TCP/SQL")
+Rel_D(alert_publisher, redis, "Отправляет JSON-событие (lpush)", "TCP/Redis Protocol")
+
+@enduml

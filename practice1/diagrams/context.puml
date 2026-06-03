@@ -1,0 +1,22 @@
+@startuml
+!include <C4/C4_Context>
+
+LAYOUT_WITH_LEGEND()
+
+skinparam wrapWidth 300
+
+title Диаграмма контекста (C1): Система "MOEX Price Alert"
+
+Person(user, "Пользователь", "Инвестор, отслеживающий котировки.")
+Person(admin, "Администратор", "Управляет системой через веб-интерфейс.")
+
+System(price_alert, "Система Price Alert", "Управляет подписками, получает котировки и отправляет уведомления.")
+
+System_Ext(moex_api, "MOEX ISS API", "Московская Биржа.")
+System_Ext(telegram_api, "Telegram API", "Мессенджер.")
+
+Rel_D(user, price_alert, "Управляет подписками", "Telegram App")
+Rel_D(admin, price_alert, "Мониторинг и управление", "HTTPS/Web")
+Rel_R(price_alert, moex_api, "Запрашивает котировки", "HTTPS/REST")
+Rel_L(price_alert, telegram_api, "Отправляет уведомления", "HTTPS/REST")
+@enduml

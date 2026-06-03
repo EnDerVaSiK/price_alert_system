@@ -1,0 +1,42 @@
+@startuml
+!include <C4/C4_Container>
+
+LAYOUT_WITH_LEGEND()
+
+skinparam wrapWidth 300
+
+title Диаграмма контейнеров (C2): Система "MOEX Price Alert"
+
+Person(user, "Пользователь", "Пользователь Telegram.")
+Person(admin, "Администратор", "Сотрудник поддержки/Админ.")
+
+System_Boundary(price_alert_system, "Система Price Alert") {
+    Container(admin_panel, "Admin Frontend", "Node.js, React, Vite", "Веб-интерфейс панели администратора (SPA).")
+    Container(api_gateway, "API Gateway / Bot", "Python, FastAPI, Aiogram", "Предоставляет REST API для фронтенда и обрабатывает команды Telegram.")
+    Container(scheduler, "Scheduler", "Python", "Планировщик задач.")
+    Container(parser, "Parser", "Python", "Сборщик цен.")
+    Container(analyzer, "Analyzer", "Python", "Бизнес-логика.")
+    Container(notifier, "Notifier", "Python", "Отправка сообщений.")
+    ContainerDb(database, "Database", "PostgreSQL", "Хранилище данных.")
+    ContainerQueue(redis, "Message Broker", "Redis", "Очереди (parse, analyze, notify).")
+}
+
+System_Ext(moex_api, "MOEX ISS API", "Биржа")
+System_Ext(telegram_api, "Telegram API", "Мессенджер")
+
+Rel_D(admin, admin_panel, "Просмотр статистики", "HTTPS")
+Rel_D(admin_panel, api_gateway, "API запросы", "HTTPS/REST")
+Rel_D(user, api_gateway, "Команды бота", "Telegram")
+
+Rel_D(api_gateway, database, "Чтение/запись", "TCP/SQL")
+Rel_D(scheduler, database, "Чтение тикеров", "TCP/SQL")
+Rel_D(scheduler, redis, "Задачи", "queue:parse")
+Rel_D(parser, redis, "Тикеры", "queue:parse")
+Rel_U(parser, moex_api, "Котировки", "HTTPS")
+Rel_D(parser, redis, "Новые цены", "queue:analyze")
+Rel_D(analyzer, redis, "Свежие цены", "queue:analyze")
+Rel_D(analyzer, database, "Сверка цен", "TCP/SQL")
+Rel_D(analyzer, redis, "Алерты", "queue:notify")
+Rel_D(notifier, redis, "Алерты", "queue:notify")
+Rel_D(notifier, telegram_api, "Сообщения", "HTTPS")
+@enduml
