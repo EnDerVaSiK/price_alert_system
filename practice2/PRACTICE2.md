@@ -106,3 +106,14 @@
 ![alt text](<screenshots/Скриншот логов `docker-compose up` с работающими сервисами-1.png>)
 ![alt text](<screenshots/Скриншот логов `docker-compose up` с работающими сервисами-2.png>)
 ![alt text](<screenshots/Скриншот логов `docker-compose up` с работающими сервисами-3.png>)
+
+
+## Дополнительные возможности: OpenAPI (Swagger) спецификация
+
+Так как основной интерфейс системы реализован через Telegram-бота (Long Polling), для выполнения требований по документированию REST API была спроектирована архитектура **Admin Backoffice API**. Данный интерфейс предназначен для управления системой извне (например, для панели администратора).
+
+Спецификация написана по стандарту OpenAPI 3.0.3 и сохранена в файле `docs/openapi.yaml`.
+
+**Скриншот сгенерированного Swagger UI:**
+
+![Swagger UI](<./screenshots/swagger.png>)

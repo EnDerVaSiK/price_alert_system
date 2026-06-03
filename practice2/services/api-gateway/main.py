@@ -2,6 +2,8 @@ import asyncio
 import logging
 import os
 import sys
+from contextlib import asynccontextmanager
+
 from aiogram import Bot, Dispatcher, F
 from aiogram.filters import CommandStart
 from aiogram.types import (
@@ -10,19 +12,25 @@ from aiogram.types import (
 )
 from sqlalchemy import select, delete
 
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+import uvicorn
+
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from shared.database import AsyncSessionLocal, User, Ticker, Subscription, Base, engine
 
+# Настройка логирования
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("api-gateway")
 
+# Инициализация Telegram-бота
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 dp = Dispatcher()
 
 POPULAR_TICKERS = ["SBER", "GAZP", "YDEX", "LKOH", "ROSN"]
 
+# --- КЛАВИАТУРЫ ---
 def get_inline_keyboard():
     buttons = [[InlineKeyboardButton(text=f"📊 {t}", callback_data=f"sub_{t}")] for t in POPULAR_TICKERS]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -37,6 +45,7 @@ def get_main_keyboard():
         is_persistent=True
     )
 
+# --- ХЭНДЛЕРЫ TELEGRAM-БОТА ---
 @dp.message(CommandStart())
 async def cmd_start(message: Message):
     tg_id = message.from_user.id
@@ -139,13 +148,60 @@ async def process_subscription(callback: CallbackQuery):
             
         await callback.answer()
 
-async def main():
+# --- FASTAPI И УПРАВЛЕНИЕ ЖИЗНЕННЫМ ЦИКЛОМ ---
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # При старте API Gateway: создаем таблицы и запускаем бота
     logger.info("Проверка/создание таблиц в БД...")
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         
-    logger.info("Запуск Telegram-бота (api-gateway)...")
-    await dp.start_polling(bot)
+    logger.info("Запуск Telegram-бота (aiogram) в фоновом режиме...")
+    polling_task = asyncio.create_task(dp.start_polling(bot))
+    
+    yield # Сервер работает
+    
+    # При остановке API Gateway: корректно глушим бота
+    logger.info("Остановка Telegram-бота...")
+    polling_task.cancel()
+    await bot.session.close()
+    await engine.dispose()
+
+# Инициализируем FastAPI
+app = FastAPI(title="Admin API", lifespan=lifespan)
+
+# Разрешаем запросы с нашего React Frontend (CORS)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], # Для локальной разработки разрешаем всё
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# --- REST API ЭНДПОИНТЫ ---
+@app.get("/api/v1/health")
+async def health_check():
+    """Эндпоинт для проверки жизнеспособности сервиса (Liveness probe)"""
+    return {"status": "ok", "service": "api-gateway"}
+
+@app.get("/api/v1/stats")
+async def get_stats():
+    """Эндпоинт для админ-панели: отдает статистику системы"""
+    async with AsyncSessionLocal() as session:
+        # Подсчет количества пользователей
+        users_result = await session.execute(select(User))
+        users_count = len(users_result.all())
+        
+        # Подсчет количества подписок
+        subs_result = await session.execute(select(Subscription))
+        subs_count = len(subs_result.all())
+        
+        return {
+            "total_users": users_count, 
+            "total_subscriptions": subs_count
+        }
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    # Запускаем FastAPI сервер (uvicorn), который сам поднимет Telegram-бота через lifespan
+    uvicorn.run(app, host="0.0.0.0", port=8000)

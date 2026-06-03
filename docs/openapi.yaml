@@ -1,0 +1,127 @@
+openapi: 3.0.3
+info:
+  title: MOEX Price Alert - Admin API
+  description: Внутренний REST API для управления пользователями, тикерами и подписками в системе Price Alert.
+  version: 1.0.0
+  contact:
+    name: API Support
+servers:
+  - url: http://localhost:8000/api/v1
+    description: Локальный сервер разработчика
+tags:
+  - name: Subscriptions
+    description: Управление подписками пользователей
+  - name: System
+    description: Системные метрики и проверки состояния
+paths:
+  /health:
+    get:
+      summary: Проверка состояния системы
+      tags:
+        - System
+      responses:
+        '200':
+          description: Система работает штатно
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+
+  /users/{telegram_id}/subscriptions:
+    get:
+      summary: Получить список подписок пользователя
+      tags:
+        - Subscriptions
+      parameters:
+        - name: telegram_id
+          in: path
+          required: true
+          description: Telegram ID пользователя
+          schema:
+            type: integer
+            example: 123456789
+      responses:
+        '200':
+          description: Успешный возврат списка подписок
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Subscription'
+        '404':
+          description: Пользователь не найден
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /subscriptions:
+    post:
+      summary: Создать новую подписку вручную (Admin)
+      tags:
+        - Subscriptions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSubscriptionRequest'
+      responses:
+        '201':
+          description: Подписка успешно создана
+        '400':
+          description: Ошибка валидации данных
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "ok"
+        db_connected:
+          type: boolean
+          example: true
+        redis_connected:
+          type: boolean
+          example: true
+
+    Subscription:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        telegram_id:
+          type: integer
+          example: 123456789
+        symbol:
+          type: string
+          example: "SBER"
+        last_notified_price:
+          type: number
+          format: float
+          example: 300.5
+          nullable: true
+
+    CreateSubscriptionRequest:
+      type: object
+      required:
+        - telegram_id
+        - symbol
+      properties:
+        telegram_id:
+          type: integer
+          example: 123456789
+        symbol:
+          type: string
+          example: "GAZP"
+
+    ErrorResponse:
+      type: object
+      properties:
+        detail:
+          type: string
+          example: "User not found"
